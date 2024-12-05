@@ -120,28 +120,23 @@ class Topic(models.Model):
 class JobImage(models.Model):
     # Image size configuration
     MAX_SIZE = (800, 800)  # Maximum image dimensions
-    
+
     image = models.ImageField(
-        upload_to='maintenance_job_images/originals/%Y/%m/',
+        upload_to='maintenance_job_images/%Y/%m/',
         validators=[FileExtensionValidator(['png', 'jpg', 'jpeg', 'gif', 'webp'])],
         null=True,
         blank=True,
-        help_text="Original uploaded image file"
+        help_text="Uploaded image file"
     )
-    
- 
-    
-    
-    
-    
+
     uploaded_by = models.ForeignKey(
-        User,
+        'auth.User',
         on_delete=models.SET_NULL,
         null=True,
         related_name='uploaded_job_images',
         help_text="User who uploaded the image"
     )
-    
+
     uploaded_at = models.DateTimeField(
         auto_now_add=True,
         help_text="Timestamp when the image was uploaded"
@@ -153,7 +148,7 @@ class JobImage(models.Model):
         verbose_name_plural = 'Job Images'
 
     def __str__(self):
-        return f"{self.name} (Uploaded: {self.uploaded_at.date()})"
+        return f"Image uploaded at {self.uploaded_at.date()}"
 
     def process_image(self, image_file, quality=85):
         """
@@ -161,78 +156,66 @@ class JobImage(models.Model):
         """
         try:
             img = Image.open(image_file)
-            
-            # Store original dimensions
-            self.width = img.width
-            self.height = img.height
-            
+
             # Resize if image is larger than MAX_SIZE
             if img.width > self.MAX_SIZE[0] or img.height > self.MAX_SIZE[1]:
                 img.thumbnail(self.MAX_SIZE, Image.Resampling.LANCZOS)
-            
+
             # Convert RGBA to RGB if necessary
             if img.mode in ('RGBA', 'LA'):
                 background = Image.new('RGB', img.size, (255, 255, 255))
                 background.paste(img, mask=img.getchannel('A'))
                 img = background
-            
+
             # Convert to RGB if not already
             if img.mode != 'RGB':
                 img = img.convert('RGB')
-            
+
             # Create BytesIO object for the processed image
             output = BytesIO()
-            
+
             # Save as WebP
             img.save(output, 'WEBP', quality=quality, optimize=True)
             output.seek(0)
-            
-            # Store file size
-            self.file_size = output.getbuffer().nbytes
-            
+
             return output
         except Exception as e:
             raise Exception(f"Error processing image: {e}")
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
-        
-        if is_new and self.original_image:
+
+        # Process and convert image only if it's a new image
+        if is_new and self.image:
             try:
                 # Process and convert image
-                processed_image = self.process_image(self.original_image)
-                
-                # If 'name' field is not provided, use the original image's filename
-                if not self.name:
-                    original_name = Path(self.original_image.name).stem
-                    self.name = f"{original_name}_webp"
-                
+                processed_image = self.process_image(self.image)
+
                 # Generate filename for WebP version
-                webp_name = f'{self.name}.webp'
-                
+                webp_name = f'{os.path.splitext(self.image.name)[0]}.webp'
+
                 # Save the WebP version of the image
                 self.image.save(
                     webp_name,
                     ContentFile(processed_image.getvalue()),  # Save the processed image
                     save=False  # Don’t save the model yet, we still need to handle other fields
                 )
-                
+
                 # Close the processed image to free memory
                 processed_image.close()
-        
+
             except Exception as e:
                 print(f"Error processing image: {e}")
-        
+
         # Call the parent save method to store the object in the database
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        """Remove image files when model instance is deleted"""
-        for field in [self.original_image, self.image]:
-            if field:
-                if os.path.isfile(field.path):
-                    os.remove(field.path)
-                
+        """Remove image file when model instance is deleted"""
+        if self.image:
+            if os.path.isfile(self.image.path):
+                os.remove(self.image.path)
+
         super().delete(*args, **kwargs)
 
 class Job(models.Model):
@@ -248,7 +231,7 @@ class Job(models.Model):
         ('low', 'Low'),
         ('medium', 'Medium'),
         ('high', 'High'),
-        ('urgent', 'Urgent')
+     
     ]
    
     job_id = models.CharField(
