@@ -10,35 +10,59 @@ import os
 from django.core.files.base import ContentFile
 from pathlib import Path
 
+
 def get_upload_path(instance, filename):
     """Generate a unique path for uploaded files"""
     ext = Path(filename).suffix
     random_filename = get_random_string(length=12)
     return f'maintenance_job_images/{timezone.now().strftime("%Y/%m")}/{random_filename}{ext}'
 
+
 class ImageProcessor:
     @staticmethod
     def process_image(image, max_width=200, max_height=100, quality=85):
         """Process and optimize images"""
-        if not image:
+        try:
+            img = Image.open(image)
+            if img.mode in ('RGBA', 'P'):
+                img = img.convert('RGB')
+            aspect = img.width / img.height
+            new_width = min(max_width, img.width)
+            new_height = min(max_height, int(new_width / aspect))
+            img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            output = BytesIO()
+            img.save(output, format='WEBP', quality=quality, optimize=True)
+            output.seek(0)
+            return output
+        except Exception as e:
+            print(f"Image processing failed: {e}")
             return None
-            
-        img = Image.open(image)
-        
-        if img.mode in ('RGBA', 'P'):
-            img = img.convert('RGB')
-        
-        aspect = img.width / img.height
-        new_width = min(max_width, img.width)
-        new_height = min(max_height, int(new_width / aspect))
-        
-        img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-        
-        output = BytesIO()
-        img.save(output, format='WEBP', quality=quality, optimize=True)
-        output.seek(0)
-        
-        return output
+
+
+class Property(models.Model):
+    property_id = models.CharField(
+        max_length=50,
+        unique=True,
+        blank=True,
+        editable=False
+    )
+    name = models.CharField(max_length=255, unique=True)
+    description = models.TextField(blank=True, null=True)
+    users = models.ManyToManyField(User, related_name='accessible_properties')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name_plural = 'Properties'
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.property_id:
+            self.property_id = f"P{get_random_string(length=8, allowed_chars='0123456789ABCDEF')}"
+        super().save(*args, **kwargs)
+
 
 class Room(models.Model):
     room_id = models.AutoField(primary_key=True)
@@ -46,6 +70,11 @@ class Room(models.Model):
     room_type = models.CharField(max_length=50, db_index=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    properties = models.ManyToManyField(
+        Property,
+        related_name='rooms',
+        blank=True
+    )
 
     class Meta:
         ordering = ['room_type', 'name']
@@ -71,6 +100,7 @@ class Room(models.Model):
         self.is_active = False
         self.save()
 
+
 class Topic(models.Model):
     title = models.CharField(
         max_length=160, 
@@ -86,67 +116,123 @@ class Topic(models.Model):
     def __str__(self):
         return self.title
 
+
 class JobImage(models.Model):
-    original_image = models.ImageField(
-        upload_to=get_upload_path,
+    # Image size configuration
+    MAX_SIZE = (800, 800)  # Maximum image dimensions
+    
+    image = models.ImageField(
+        upload_to='maintenance_job_images/originals/%Y/%m/',
         validators=[FileExtensionValidator(['png', 'jpg', 'jpeg', 'gif', 'webp'])],
         null=True,
-        blank=True
+        blank=True,
+        help_text="Original uploaded image file"
     )
-    image = models.ImageField(
-        upload_to='maintenance_job_images/%Y/%m/webp/',
-        null=True,
-        blank=True
-    )
-    description = models.TextField(blank=True, null=True)
-    name = models.CharField(max_length=255)
+    
+ 
+    
+    
+    
+    
     uploaded_by = models.ForeignKey(
-        User, 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        related_name='uploaded_job_images'
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='uploaded_job_images',
+        help_text="User who uploaded the image"
     )
-    uploaded_at = models.DateTimeField(auto_now_add=True)
+    
+    uploaded_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="Timestamp when the image was uploaded"
+    )
 
     class Meta:
         ordering = ['-uploaded_at']
+        verbose_name = 'Job Image'
         verbose_name_plural = 'Job Images'
-        app_label = 'myappLubd'
 
     def __str__(self):
         return f"{self.name} (Uploaded: {self.uploaded_at.date()})"
+
+    def process_image(self, image_file, quality=85):
+        """
+        Process and resize the image, converting it to WebP format.
+        """
+        try:
+            img = Image.open(image_file)
+            
+            # Store original dimensions
+            self.width = img.width
+            self.height = img.height
+            
+            # Resize if image is larger than MAX_SIZE
+            if img.width > self.MAX_SIZE[0] or img.height > self.MAX_SIZE[1]:
+                img.thumbnail(self.MAX_SIZE, Image.Resampling.LANCZOS)
+            
+            # Convert RGBA to RGB if necessary
+            if img.mode in ('RGBA', 'LA'):
+                background = Image.new('RGB', img.size, (255, 255, 255))
+                background.paste(img, mask=img.getchannel('A'))
+                img = background
+            
+            # Convert to RGB if not already
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+            
+            # Create BytesIO object for the processed image
+            output = BytesIO()
+            
+            # Save as WebP
+            img.save(output, 'WEBP', quality=quality, optimize=True)
+            output.seek(0)
+            
+            # Store file size
+            self.file_size = output.getbuffer().nbytes
+            
+            return output
+        except Exception as e:
+            raise Exception(f"Error processing image: {e}")
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
         
         if is_new and self.original_image:
-            super().save(*args, **kwargs)
-            
             try:
-                processed = ImageProcessor.process_image(self.original_image)
-                if processed:
-                    name = Path(self.original_image.name).stem
-                    webp_name = f'{name}.webp'
-                    
-                    self.image.save(
-                        webp_name,
-                        ContentFile(processed.getvalue()),
-                        save=False
-                    )
-                    
-                    processed.close()
+                # Process and convert image
+                processed_image = self.process_image(self.original_image)
+                
+                # If 'name' field is not provided, use the original image's filename
+                if not self.name:
+                    original_name = Path(self.original_image.name).stem
+                    self.name = f"{original_name}_webp"
+                
+                # Generate filename for WebP version
+                webp_name = f'{self.name}.webp'
+                
+                # Save the WebP version of the image
+                self.image.save(
+                    webp_name,
+                    ContentFile(processed_image.getvalue()),  # Save the processed image
+                    save=False  # Don’t save the model yet, we still need to handle other fields
+                )
+                
+                # Close the processed image to free memory
+                processed_image.close()
+        
             except Exception as e:
                 print(f"Error processing image: {e}")
-                
+        
+        # Call the parent save method to store the object in the database
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        if self.original_image:
-            if os.path.isfile(self.original_image.path):
-                os.remove(self.original_image.path)
-        if self.image:
-            if os.path.isfile(self.image.path):
-                os.remove(self.image.path)
+        """Remove image files when model instance is deleted"""
+        for field in [self.original_image, self.image]:
+            if field:
+                if os.path.isfile(field.path):
+                    os.remove(field.path)
+                
         super().delete(*args, **kwargs)
 
 class Job(models.Model):
@@ -232,37 +318,6 @@ class Job(models.Model):
         unique_id = get_random_string(length=6, allowed_chars='0123456789ABCDEF')
         return f"j{timestamp}{unique_id}"
 
-class Property(models.Model):
-    property_id = models.CharField(
-        max_length=50, 
-        unique=True, 
-        blank=True, 
-        editable=False
-    )
-    name = models.CharField(max_length=255, unique=True)
-    description = models.TextField(blank=True, null=True)
-    rooms = models.ManyToManyField(
-        Room, 
-        related_name='properties', 
-        blank=True
-    )
-    users = models.ManyToManyField(
-        User,
-        related_name='accessible_properties'
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ['name']
-        verbose_name_plural = 'Properties'
-
-    def __str__(self):
-        return self.name
-
-    def save(self, *args, **kwargs):
-        if not self.property_id:
-            self.property_id = f"P{get_random_string(length=8, allowed_chars='0123456789ABCDEF')}"
-        super().save(*args, **kwargs)
 
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
