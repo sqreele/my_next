@@ -36,15 +36,14 @@ class RoomAdmin(admin.ModelAdmin):
     list_display = ('name', 'room_type', 'is_active', 'created_at')
     list_filter = ('room_type', 'is_active')
     search_fields = ('name',)
-
 @admin.register(Topic)
 class TopicAdmin(admin.ModelAdmin):
-    list_display = ('title', 'description')
+    list_display = ('title', 'description','id')  # Use 'topic_id' instead of 'id'
     search_fields = ('title',)
 
 @admin.register(Job)
 class JobAdmin(admin.ModelAdmin):
-    list_display = ('job_id', 'user', 'status', 'priority', 'remarks', 'created_at', 'completed_at')
+    list_display = ('job_id', 'user', 'status', 'priority' ,'remarks', 'created_at', 'completed_at')
     list_filter = ('status', 'priority', 'created_at')
     search_fields = ('job_id', 'description')
 

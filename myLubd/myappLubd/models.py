@@ -103,8 +103,8 @@ class Room(models.Model):
 
 class Topic(models.Model):
     title = models.CharField(
-        max_length=160, 
-        unique=True, 
+        max_length=160,
+        unique=True,
         verbose_name="Subject"
     )
     description = models.TextField(blank=True, null=True)
@@ -115,7 +115,6 @@ class Topic(models.Model):
 
     def __str__(self):
         return self.title
-
 
 class JobImage(models.Model):
     # Image size configuration
@@ -255,6 +254,7 @@ class Job(models.Model):
         related_name='jobs', 
         blank=True
     )
+    is_defective = models.BooleanField(default=False)
     images = models.ManyToManyField(
         'JobImage', 
         related_name='jobs', 

@@ -2,6 +2,12 @@ from rest_framework import viewsets
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from rest_framework import viewsets, status
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.permissions import AllowAny
+import json
 from django.shortcuts import get_object_or_404
 from .models import Room, Topic, Job, Property, UserProfile
 from .serializers import (
@@ -16,14 +22,17 @@ import logging
 logger = logging.getLogger(__name__)
 
 class RoomViewSet(viewsets.ModelViewSet):
+    permission_classes = [AllowAny]
     queryset = Room.objects.all()
     serializer_class = RoomSerializer
 
 class TopicViewSet(viewsets.ModelViewSet):
+    permission_classes = [AllowAny]
     queryset = Topic.objects.all()
     serializer_class = TopicSerializer
 
 class JobViewSet(viewsets.ModelViewSet):
+    permission_classes = [AllowAny]
     queryset = Job.objects.all()
     serializer_class = JobSerializer
     lookup_field = 'job_id'  # Use job_id instead of pk for lookups
@@ -76,9 +85,11 @@ class JobViewSet(viewsets.ModelViewSet):
             )
 
 class PropertyViewSet(viewsets.ModelViewSet):
+    permission_classes = [AllowAny]
     queryset = Property.objects.all()
     serializer_class = PropertySerializer
 
 class UserProfileViewSet(viewsets.ModelViewSet):
+    permission_classes = [AllowAny]
     queryset = UserProfile.objects.all()
     serializer_class = UserProfileSerializer
