@@ -120,6 +120,13 @@ class JobImage(models.Model):
     # Image size configuration
     MAX_SIZE = (800, 800)  # Maximum image dimensions
 
+    job = models.ForeignKey(
+        'Job',  # Add ForeignKey to Job
+        on_delete=models.CASCADE,
+        related_name='job_images',  # Related name for reverse access
+        help_text="The job associated with this image"
+    )
+
     image = models.ImageField(
         upload_to='maintenance_job_images/%Y/%m/',
         validators=[FileExtensionValidator(['png', 'jpg', 'jpeg', 'gif', 'webp'])],
@@ -147,7 +154,7 @@ class JobImage(models.Model):
         verbose_name_plural = 'Job Images'
 
     def __str__(self):
-        return f"Image uploaded at {self.uploaded_at.date()}"
+        return f"Image for Job {self.job.job_id} uploaded at {self.uploaded_at.date()}"
 
     def process_image(self, image_file, quality=85):
         """

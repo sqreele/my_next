@@ -7,9 +7,10 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import AllowAny
-import json
+from rest_framework.views import APIView
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
-from .models import Room, Topic, Job, Property, UserProfile
+from .models import Room, Topic, Job, Property, UserProfile, Property
 from .serializers import (
     RoomSerializer, 
     TopicSerializer, 
@@ -84,12 +85,262 @@ class JobViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-class PropertyViewSet(viewsets.ModelViewSet):
+class UserProfileViewSet(viewsets.ModelViewSet):
     permission_classes = [AllowAny]
-    queryset = Property.objects.all()
-    serializer_class = PropertySerializer
+    queryset = UserProfile.objects.all()
+    serializer_class = UserProfileSerializer
+
+    def get_queryset(self):
+        queryset = UserProfile.objects.all().prefetch_related('properties')
+        
+        # Filter by position
+        position = self.request.query_params.get('position', None)
+        if position:
+            queryset = queryset.filter(positions__icontains=position)
+            
+        return queryset
+
+    @action(detail=False, methods=['get'])
+    def me(self, request):
+        """Get current user's profile"""
+        profile = get_object_or_404(UserProfile, user=request.user)
+        serializer = self.get_serializer(profile)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def add_property(self, request, pk=None):
+        """Add property to user profile"""
+        profile = self.get_object()
+        property_id = request.data.get('property_id')
+        
+        if not property_id:
+            return Response(
+                {'error': 'property_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        property = get_object_or_404(Property, id=property_id)
+        profile.properties.add(property)
+        
+        serializer = self.get_serializer(profile)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def remove_property(self, request, pk=None):
+        """Remove property from user profile"""
+        profile = self.get_object()
+        property_id = request.data.get('property_id')
+        
+        if not property_id:
+            return Response(
+                {'error': 'property_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        property = get_object_or_404(Property, id=property_id)
+        profile.properties.remove(property)
+        
+        serializer = self.get_serializer(profile)
+        return Response(serializer.data)
 
 class UserProfileViewSet(viewsets.ModelViewSet):
     permission_classes = [AllowAny]
     queryset = UserProfile.objects.all()
     serializer_class = UserProfileSerializer
+
+    def get_queryset(self):
+        queryset = UserProfile.objects.all().prefetch_related('properties')
+        
+        # Filter by position
+        position = self.request.query_params.get('position', None)
+        if position:
+            queryset = queryset.filter(positions__icontains=position)
+            
+        return queryset
+
+    @action(detail=False, methods=['get'])
+    def me(self, request):
+        """Get current user's profile"""
+        profile = get_object_or_404(UserProfile, user=request.user)
+        serializer = self.get_serializer(profile)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def add_property(self, request, pk=None):
+        """Add property to user profile"""
+        profile = self.get_object()
+        property_id = request.data.get('property_id')
+        
+        if not property_id:
+            return Response(
+                {'error': 'property_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        property = get_object_or_404(Property, id=property_id)
+        profile.properties.add(property)
+        
+        serializer = self.get_serializer(profile)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def remove_property(self, request, pk=None):
+        """Remove property from user profile"""
+        profile = self.get_object()
+        property_id = request.data.get('property_id')
+        
+        if not property_id:
+            return Response(
+                {'error': 'property_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        property = get_object_or_404(Property, id=property_id)
+        profile.properties.remove(property)
+        
+        serializer = self.get_serializer(profile)
+        return Response(serializer.data)
+class PropertyViewSet(viewsets.ModelViewSet):
+    permission_classes = [AllowAny]
+    queryset = Property.objects.all()
+    serializer_class = PropertySerializer
+    
+    def get_queryset(self):
+        queryset = Property.objects.all()
+        
+        # Filter by price range
+        min_price = self.request.query_params.get('min_price', None)
+        max_price = self.request.query_params.get('max_price', None)
+        if min_price:
+            queryset = queryset.filter(price__gte=min_price)
+        if max_price:
+            queryset = queryset.filter(price__lte=max_price)
+            
+        # Filter by location
+        location = self.request.query_params.get('location', None)
+        if location:
+            queryset = queryset.filter(location__icontains=location)
+            
+        return queryset
+
+    @action(detail=True, methods=['post'])
+    def add_to_profile(self, request, pk=None):
+        property = self.get_object()
+        user_profile = get_object_or_404(UserProfile, user=request.user)
+        user_profile.properties.add(property)
+        return Response({'status': 'property added to profile'})
+    
+class CustomSessionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        # Get user profile
+        try:
+            profile = user.profile  # Assuming you have a related profile model
+            return Response({
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "is_staff": user.is_staff,
+                "profile": {
+                    "properties": profile.properties,
+                    "positions": profile.positions,
+                    "profile_image": profile.profile_image if hasattr(profile, 'profile_image') else None
+                }
+            })
+        except:
+            return Response({
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "is_staff": user.is_staff,
+            })
+        
+from django.views.decorators.csrf import csrf_exempt       
+@csrf_exempt
+def log_view(request):
+    """
+    Handles requests to the /api/auth/_log endpoint.
+    Logs incoming requests or returns a simple response.
+    """
+    if request.method == "POST":
+        print("Log received:", request.body.decode('utf-8'))
+        return JsonResponse({"message": "Log received"}, status=200)
+    return JsonResponse({"error": "Method not allowed"}, status=405)
+
+class UserSessionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        return Response({
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "profile_image": getattr(user, 'profile_image', None),  # Optional field
+        })
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from django.contrib.auth.decorators import login_required
+from django.middleware.csrf import get_token
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth.models import AnonymousUser
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def auth_check(request):
+    try:
+        csrf_token = get_token(request)
+        
+        if request.user.is_authenticated:
+            refresh = RefreshToken.for_user(request.user)
+            return Response({
+                'authenticated': True,
+                'user': {
+                    'username': request.user.username,
+                },
+                'tokens': {
+                    'access': str(refresh.access_token),
+                    'refresh': str(refresh),
+                },
+                'csrf_token': csrf_token
+            })
+        
+        return Response({
+            'authenticated': False,
+            'csrf_token': csrf_token
+        }, status=200)
+    
+    except Exception as e:
+        print(f"Auth check error: {str(e)}")
+        return Response({
+            'authenticated': False,
+            'error': 'Authentication error occurred'
+        }, status=200)
+
+# Add this for token refresh
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def refresh_token(request):
+    refresh_token = request.data.get('refresh')
+    try:
+        refresh = RefreshToken(refresh_token)
+        return Response({
+            'access': str(refresh.access_token),
+        })
+    except Exception as e:
+        return Response({'error': 'Invalid refresh token'}, status=401)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_job(request):
+    if isinstance(request.user, AnonymousUser):
+        print("Anonymous User detected in the request")
+    else:
+        print(f"Authenticated User: {request.user.username}")
+
+    serializer = JobSerializer(data=request.data, context={'request': request})
+    if serializer.is_valid():
+        job = serializer.save()
+        return Response(JobSerializer(job).data, status=201)
+    return Response(serializer.errors, status=400)

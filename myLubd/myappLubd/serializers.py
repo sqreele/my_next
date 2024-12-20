@@ -2,17 +2,37 @@ from rest_framework import serializers
 from .models import Room, Topic, JobImage, Job, Property, UserProfile
 from django.contrib.auth.models import User
 
+class PropertySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Property
+        fields = [
+        
+            'name',
+            'description',
+            'property_id',
+            'users',
+            'created_at',
+         
+          
+        
+        ]
+        read_only_fields = ['created_at']
+
 class UserProfileSerializer(serializers.ModelSerializer):
-    profile_image = serializers.ImageField(required=False)
     username = serializers.CharField(source='user.username', read_only=True)
+    properties = PropertySerializer(many=True, read_only=True)
     
     class Meta:
         model = UserProfile
-        fields = ['profile_image', 'positions', 'username', 'properties']
-        extra_kwargs = {
-            'positions': {'required': False},
-            'properties': {'required': False}
-        }
+        fields = [
+            'id',
+            'username',
+            'profile_image',
+            'positions',
+            'properties',
+           
+        ]
+      
 
 class RoomSerializer(serializers.ModelSerializer):
     class Meta:
@@ -44,69 +64,96 @@ class TopicSerializer(serializers.ModelSerializer):
     class Meta:
         model = Topic
         fields = ['title', 'description','id']
-
+from django.db import transaction
 class JobSerializer(serializers.ModelSerializer):
     user = serializers.StringRelatedField(read_only=True)
-    images = JobImageSerializer(many=True, read_only=True)
+    images = JobImageSerializer(source='job_images', many=True, read_only=True)  # Use job_images
     topics = TopicSerializer(many=True, read_only=True)
     profile_image = UserProfileSerializer(source='user.userprofile', read_only=True)
     room_type = serializers.CharField(source='room.room_type', read_only=True)
     name = serializers.CharField(source='room.name', read_only=True)
     rooms = RoomSerializer(many=True, read_only=True)
-    
+    topic_data = serializers.JSONField(write_only=True)
+    room_id = serializers.IntegerField(write_only=True)
+    image_urls = serializers.SerializerMethodField()
+   
     class Meta:
         model = Job
-        fields = ['job_id', 'description', 'status', 'priority', 'created_at', 
-                 'updated_at', 'completed_at', 'user', 'profile_image', 
-                 'images', 'topics', 'room_type', 'name', 'rooms', 'remarks', 
-                 'is_defective']
+        fields = [
+            'job_id', 'description', 'status', 'priority',
+            'created_at', 'updated_at', 'completed_at',
+            'user', 'profile_image', 'images', 'topics',
+            'room_type', 'name', 'rooms', 'remarks',
+            'is_defective', 'topic_data', 'room_id',
+            'image_urls'
+        ]
         read_only_fields = ['job_id', 'created_at', 'updated_at', 'completed_at', 'user']
-    def create(self, validated_data):
-        # Extract the write-only fields
-        topic_data = validated_data.pop('topic_data')
-        room_id = validated_data.pop('room_id')
+
+    def get_image_urls(self, obj):
+        """Return a list of full URLs for all images associated with the job"""
         request = self.context.get('request')
-        
+        if request and obj.job_images.exists():  # Use job_images
+            return [
+                request.build_absolute_uri(image.image.url)
+                for image in obj.job_images.all()  # Use job_images
+            ]
+        return []
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            raise serializers.ValidationError("User must be logged in to create a job")
+
+        topic_data = validated_data.pop('topic_data', None)
+        room_id = validated_data.pop('room_id', None)
+
+        if not room_id:
+            raise serializers.ValidationError({'room_id': 'This field is required.'})
+        if not topic_data or 'title' not in topic_data:
+            raise serializers.ValidationError({'topic_data': 'This field is required and must include a title.'})
+
         try:
-            # Get room
-            room = Room.objects.get(room_id=room_id)
-            
-            # Create or get topic
-            topic, _ = Topic.objects.get_or_create(
-                title=topic_data['title'],
-                defaults={'description': topic_data['description']}
-            )
+            with transaction.atomic():
+                # Get the room
+                room = Room.objects.get(room_id=room_id)
 
-            # Create job
-            job = Job.objects.create(
-                **validated_data,
-                room=room,
-                user=request.user
-            )
-            
-            # Add topic to job (since it's a many-to-many relationship)
-            job.topics.add(topic)
-
-            # Handle image uploads if they exist
-            images = request.FILES.getlist('images')
-            for image in images:
-                JobImage.objects.create(
-                    job=job,
-                    image=image
+                # Create or get topic
+                topic, _ = Topic.objects.get_or_create(
+                    title=topic_data['title'],
+                    defaults={'description': topic_data.get('description', '')}
                 )
 
-            return job
+                # Create job
+                job = Job.objects.create(
+                    **validated_data,
+                    user=request.user
+                )
+
+                # Add relationships
+                job.rooms.add(room)
+                job.topics.add(topic)
+
+                # Handle images
+                images = request.FILES.getlist('images', [])
+                for image in images:
+                    JobImage.objects.create(
+                        job=job,
+                        image=image,
+                        uploaded_by=request.user
+                    )
+
+                job.refresh_from_db()
+                return job
 
         except Room.DoesNotExist:
             raise serializers.ValidationError({'room_id': 'Invalid room ID'})
-        except KeyError as e:
-            raise serializers.ValidationError({
-                'topic_data': f'Missing required field: {str(e)}'
-            })
         except Exception as e:
-            raise serializers.ValidationError(str(e))
+            raise serializers.ValidationError({'detail': str(e)})
 
-    def to_representation(self, instance):
-        # This ensures we get full serialized data when retrieving
-        representation = super().to_representation(instance)
-        return representation
+
+
+
+def to_representation(self, instance):
+    data = super().to_representation(instance)
+    print("Response data:", data)  # Debug line
+    return data

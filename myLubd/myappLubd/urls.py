@@ -7,7 +7,8 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
 
-
+from .views import CustomSessionView 
+from .views import log_view
 # Set the app name correctly
 app_name = 'myappLubd'
 
@@ -25,6 +26,10 @@ urlpatterns = [
     path('api/', include(router.urls)),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/auth/session/', CustomSessionView.as_view(), name='auth_session'),
+    path('api/auth/_log', log_view, name='log_view'),
+     path('api/auth/check/', views.auth_check, name='auth_check'),
+  
 
   
     
