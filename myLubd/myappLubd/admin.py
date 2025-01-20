@@ -31,15 +31,26 @@ class JobImageAdmin(admin.ModelAdmin):
     def get_uploaded_at(self, obj):
         return obj.uploaded_at
     get_uploaded_at.short_description = 'Upload Date'
+    
+    
+    
 @admin.register(Room)
 class RoomAdmin(admin.ModelAdmin):
     list_display = ('name', 'room_type', 'is_active', 'created_at')
-    list_filter = ('room_type', 'is_active')
-    search_fields = ('name',)
+    list_filter = ('room_type', 'is_active','properties')
+    search_fields = ['name']
+    def get_properties(self, obj):
+        # Get first 3 properties and add '...' if there are more
+        properties = obj.properties.all()[:3]
+        property_list = [p.name for p in properties]
+        if obj.properties.count() > 3:
+            property_list.append('...')
+        return ", ".join(property_list)
+    get_properties.short_description = 'Properties'
 @admin.register(Topic)
 class TopicAdmin(admin.ModelAdmin):
     list_display = ('title', 'description','id')  # Use 'topic_id' instead of 'id'
-    search_fields = ('title',)
+    search_fields = ['title']
 
 @admin.register(Job)
 class JobAdmin(admin.ModelAdmin):

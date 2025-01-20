@@ -181,7 +181,7 @@ class JobImage(models.Model):
             output = BytesIO()
 
             # Save as WebP
-            img.save(output, 'WEBP', quality=quality, optimize=True)
+            img.save(output, 'JPEG', quality=quality, optimize=True)
             output.seek(0)
 
             return output

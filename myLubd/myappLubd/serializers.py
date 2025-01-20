@@ -19,7 +19,6 @@ class PropertySerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at']
 
 class UserProfileSerializer(serializers.ModelSerializer):
-    username = serializers.CharField(source='user.username', read_only=True)
     properties = PropertySerializer(many=True, read_only=True)
     
     class Meta:
@@ -85,7 +84,7 @@ class JobSerializer(serializers.ModelSerializer):
             'user', 'profile_image', 'images', 'topics',
             'room_type', 'name', 'rooms', 'remarks',
             'is_defective', 'topic_data', 'room_id',
-            'image_urls'
+            'image_urls','id'
         ]
         read_only_fields = ['job_id', 'created_at', 'updated_at', 'completed_at', 'user']
 
