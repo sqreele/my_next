@@ -20,6 +20,7 @@ class PropertySerializer(serializers.ModelSerializer):
 
 class UserProfileSerializer(serializers.ModelSerializer):
     properties = PropertySerializer(many=True, read_only=True)
+    username = serializers.SerializerMethodField()
     
     class Meta:
         model = UserProfile
@@ -31,6 +32,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'properties',
            
         ]
+    def get_username(self, obj):
+        return obj.user.username    
       
 
 class RoomSerializer(serializers.ModelSerializer):
