@@ -1,0 +1,43 @@
+version: '3.10'
+
+services:
+  backend:    # Changed from 'web' to 'backend' to match root docker-compose.yml
+    build: .
+    restart: unless-stopped
+    volumes:
+      - ./src:/app/src
+      - static_data:/app/src/static
+      - media_data:/app/src/media
+    environment:
+      - DEBUG=0
+      - DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1]
+      - SQL_ENGINE=django.db.backends.postgresql
+      - SQL_DATABASE=mylubd_db
+      - SQL_USER=mylubd_user
+      - SQL_PASSWORD=mylubd_password
+      - SQL_HOST=db
+      - SQL_PORT=5432
+    depends_on:
+      - db
+    networks:
+      - app-network
+
+  db:
+    image: postgres:13
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_DB=mylubd_db
+      - POSTGRES_USER=mylubd_user
+      - POSTGRES_PASSWORD=mylubd_password
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  static_data:
+  media_data:
