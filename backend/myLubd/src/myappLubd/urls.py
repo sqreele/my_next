@@ -27,16 +27,16 @@ router.register(r'user-profiles', UserProfileViewSet)
 urlpatterns = [
     # Include API routes under the 'api/' path
     path('api/', include(router.urls)),
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/v1/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/v1/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/session/', CustomSessionView.as_view(), name='auth_session'),
-    path('api/auth/_log', log_view, name='log_view'),
-      path('api/auth/check/', views.auth_check, name='auth_check'),
+    path('api/v1/auth/_log', log_view, name='log_view'),
+      path('api/v1/auth/check/', views.auth_check, name='auth_check'),
     path('health/', health_check, name='health_check'),
-    path('api/auth/providers/', views.auth_providers, name='auth_providers'),
-    path('api/drf/auth/error/', views.auth_error, name='auth_error'),
-    path('api/drf/auth/login/', views.login_view, name='login'),     
-    path('api/health/', views.health_check),
-  
+    path('api/providers/', views.auth_providers, name='auth_providers'),
+    path('api/v1/auth/error/', views.auth_error, name='auth_error'),
+    path('api/auth/login/', views.login_view, name='login'),     
+     path('api/health/', health_check, name='health_check'),
+    path('api/v1/auth/register/', views.RegisterView.as_view(), name='register'),
     
 ]

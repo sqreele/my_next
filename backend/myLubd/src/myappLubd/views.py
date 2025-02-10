@@ -400,3 +400,100 @@ def log_view(request):
 @api_view(['GET'])
 def health_check(request):
     return Response({"status": "healthy"})
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.permissions import AllowAny
+class RegisterView(APIView):
+   authentication_classes = []
+   permission_classes = [AllowAny]
+
+   def post(self, request):
+    serializer = UserRegistrationSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.save()
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': serializer.data
+        }, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    return Response({"status": "healthy"}, status=200)
+from .serializers import UserRegistrationSerializer, LoginSerializer
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@csrf_exempt
+def register_user(request):
+    serializer = UserRegistrationSerializer(data=request.data) 
+    if serializer.is_valid():
+        user = serializer.save()
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email
+            }
+        }, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+@csrf_exempt
+def login_user(request):
+    serializer = LoginSerializer(data=request.data)
+    if serializer.is_valid():
+        username = serializer.validated_data['username']
+        password = serializer.validated_data['password']
+        user = authenticate(username=username, password=password)
+        
+        if user:
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email
+                }
+            })
+        return Response(
+            {'detail': 'Invalid credentials'}, 
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def auth_check(request):
+    try:
+        user = request.user
+        # Get or create user profile
+        profile, created = UserProfile.objects.get_or_create(user=user)
+        
+        return Response({
+            'isAuthenticated': True,
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'profile': {
+                    'id': profile.id,
+                    'positions': profile.positions,
+                    'profile_image': str(profile.profile_image),
+                    'properties': list(profile.properties.values_list('id', flat=True))
+                }
+            }
+        })
+    except Exception as e:
+        print(f"Auth check error: {str(e)}")
+        return Response({
+            'isAuthenticated': False,
+            'error': str(e)
+        }, status=status.HTTP_400_BAD_REQUEST)

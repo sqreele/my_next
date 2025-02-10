@@ -27,11 +27,13 @@ DEBUG = os.getenv('DJANGO_DEBUG', 'False') == 'True'  # Default to False for sec
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
+    'http://localhost:3000',
     '[::1]',
     'pmcs.site',
     'www.pmcs.site',
     'django-backend',
-    'https://pmcs.site',  # Temporarily add this for debugging
+    'https://pmcs.site',
+    '143.198.163.55',   # Temporarily add this for debugging
 ]
 
 # Applications
@@ -115,9 +117,11 @@ REST_FRAMEWORK = {
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
     'AUTH_HEADER_TYPES': ('Bearer',),
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
 }
@@ -196,12 +200,14 @@ CORS_ALLOWED_ORIGINS = [
      "https://pmcs.site",
     "https://www.pmcs.site",
    "http://nextjs-frontend:3000",
+     "http://django-backend:8000",
 ]
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
       "https://pmcs.site",
     "https://www.pmcs.site",
     "http://nextjs-frontend:3000",
+      "http://django-backend:8000",
 ]
 CORS_ALLOW_CREDENTIALS = True
 CORS_EXPOSE_HEADERS = ['Content-Type', 'X-CSRFToken']

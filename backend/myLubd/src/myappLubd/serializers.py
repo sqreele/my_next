@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from .models import Room, Topic, JobImage, Job, Property, UserProfile
 from django.contrib.auth.models import User
-
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 class PropertySerializer(serializers.ModelSerializer):
     class Meta:
         model = Property
@@ -159,3 +160,94 @@ def to_representation(self, instance):
     data = super().to_representation(instance)
     print("Response data:", data)  # Debug line
     return data
+class UserRegistrationSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True)
+    email = serializers.EmailField(required=True)
+
+    class Meta:
+        model = User
+        fields = ('username', 'email', 'password')
+
+    def create(self, validated_data):
+        return User.objects.create_user(**validated_data)
+class UserSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(
+        write_only=True,
+        required=True,
+        validators=[validate_password]
+    )
+    password2 = serializers.CharField(write_only=True, required=True)
+    email = serializers.EmailField(required=True)
+
+    class Meta:
+        model = User
+        fields = ('username', 'password', 'password2', 'email')
+
+    def validate(self, attrs):
+        if attrs['password'] != attrs['password2']:
+            raise serializers.ValidationError(
+                {"password": "Password fields didn't match."}
+            )
+        
+        # Validate username
+        username = attrs.get('username', '')
+        if User.objects.filter(username=username).exists():
+            raise serializers.ValidationError(
+                {"username": "A user with that username already exists."}
+            )
+        
+        # Validate email
+        email = attrs.get('email', '')
+        if User.objects.filter(email=email).exists():
+            raise serializers.ValidationError(
+                {"email": "A user with that email already exists."}
+            )
+            
+        return attrs
+
+    def create(self, validated_data):
+        validated_data.pop('password2')
+        user = User.objects.create_user(
+            username=validated_data['username'],
+            email=validated_data['email'],
+            password=validated_data['password']
+        )
+        
+        # Create associated UserProfile
+        UserProfile.objects.create(
+            user=user,
+            email=validated_data['email']
+        )
+        
+        return user
+
+class LoginSerializer(serializers.Serializer):
+    username = serializers.CharField(required=True)
+    password = serializers.CharField(required=True, write_only=True)
+
+    def validate(self, attrs):
+        username = attrs.get('username')
+        password = attrs.get('password')
+
+        if not username or not password:
+            raise serializers.ValidationError(
+                "Both username and password are required."
+            )
+
+        return attrs
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True)
+    email = serializers.EmailField(source='user.email', read_only=True)
+
+    class Meta:
+        model = UserProfile
+        fields = (
+            'id', 
+            'username', 
+            'email', 
+            'profile_image',
+            'positions',
+            'properties'
+        )
+        read_only_fields = ('id',)
