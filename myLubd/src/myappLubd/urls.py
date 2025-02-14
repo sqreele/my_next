@@ -28,9 +28,12 @@ urlpatterns = [
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/session/', CustomSessionView.as_view(), name='auth_session'),
     path('api/auth/_log', log_view, name='log_view'),
-     path('api/auth/check/', views.auth_check, name='auth_check'),
+    path('api/auth/check/', views.auth_check, name='auth_check'),
+   # path('api/auth/register/', views.RegisterView.as_view(), name='register'),
+    path('api/auth/register/', views.register_user, name='register'),
+    path('auth/signin/', views.login_user, name='login'),
   
 
-  
+ 
     
 ]

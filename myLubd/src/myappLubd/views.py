@@ -16,7 +16,8 @@ from .serializers import (
     TopicSerializer, 
     JobSerializer, 
     PropertySerializer,
-    UserProfileSerializer
+    UserProfileSerializer,
+    UserRegistrationSerializer
 )
 import logging
 
@@ -344,3 +345,81 @@ def create_job(request):
         job = serializer.save()
         return Response(JobSerializer(job).data, status=201)
     return Response(serializer.errors, status=400)
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.permissions import AllowAny
+class RegisterView(APIView):
+   authentication_classes = []
+   permission_classes = [AllowAny]
+
+   def post(self, request):
+    serializer = UserRegistrationSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.save()
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': serializer.data
+        }, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth import authenticate
+from .serializers import UserRegistrationSerializer,LoginSerializer
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def register_user(request):
+    serializer = UserRegistrationSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.save()
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': {
+                'username': user.username,
+                'email': user.email
+            }
+        }, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login_user(request):
+    serializer = LoginSerializer(data=request.data)
+    if serializer.is_valid():
+        user = authenticate(
+            username=serializer.validated_data['username'],
+            password=serializer.validated_data['password']
+        )
+        if user:
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+                'user': {
+                    'username': user.username,
+                    'email': user.email
+                }
+            })
+        return Response(
+            {'error': 'Invalid credentials'}, 
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+@api_view(['GET'])
+def auth_check(request):
+    if request.user.is_authenticated:
+        return Response({
+            'isAuthenticated': True,
+            'user': {
+                'id': request.user.id,
+                'username': request.user.username,
+                'email': request.user.email
+            }
+        })
+    return Response({'isAuthenticated': False})
