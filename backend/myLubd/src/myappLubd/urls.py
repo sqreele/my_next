@@ -31,6 +31,7 @@ urlpatterns = [
     path('api/v1/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/session/', CustomSessionView.as_view(), name='auth_session'),
     path('api/v1/auth/_log', log_view, name='log_view'),
+    path('api/v1/auth/google/', views.google_auth, name='google-auth'),
       path('api/v1/auth/check/', views.auth_check, name='auth_check'),
     path('health/', health_check, name='health_check'),
     path('api/providers/', views.auth_providers, name='auth_providers'),

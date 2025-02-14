@@ -17,6 +17,9 @@ from datetime import timedelta
 # Base directory
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
+
+
 # Security
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'your-default-secret-key')
 DEBUG = os.getenv('DJANGO_DEBUG', 'True') == 'True'
@@ -33,8 +36,22 @@ ALLOWED_HOSTS = [
     'www.pmcs.site',
     'django-backend',
     'https://pmcs.site',
-    '143.198.163.55',   # Temporarily add this for debugging
+       # Temporarily add this for debugging
 ]
+# Google OAuth Settings
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
+
+# OAuth2 settings
+OAUTH2_SETTINGS = {
+    'GOOGLE': {
+        'client_id': GOOGLE_CLIENT_ID,
+        'client_secret': GOOGLE_CLIENT_SECRET,
+        'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
+        'token_uri': 'https://oauth2.googleapis.com/token',
+        'userinfo_uri': 'https://www.googleapis.com/oauth2/v3/userinfo',
+    }
+}
 
 # Applications
 INSTALLED_APPS = [
@@ -90,11 +107,11 @@ TEMPLATES = [
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('POSTGRES_DB', 'mylubd_db'),
-        'USER': os.getenv('POSTGRES_USER', 'mylubd_user'),
-        'PASSWORD': os.getenv('POSTGRES_PASSWORD', 'mylubd_password'),
-        'HOST': os.getenv('POSTGRES_HOST', 'postgres-db'),
-        'PORT': os.getenv('POSTGRES_PORT', '5432'),
+        'NAME': 'mylubd_db',
+        'USER': 'mylubd_user',
+        'PASSWORD': 'mylubd_password',
+        'HOST': 'db',
+        'PORT': '5432',
     }
 }
 
@@ -151,10 +168,10 @@ CORS_ALLOW_HEADERS = [
 
 # Static and Media Files
 STATIC_URL = '/static/'
-STATIC_ROOT = '/app/src/static'
+STATIC_ROOT = '/app/static'
 
 MEDIA_URL = '/media/'
-MEDIA_ROOT = '/app/src/media'
+MEDIA_ROOT = '/app/media'
 # Logging
 LOGGING = {
     'version': 1,
@@ -213,7 +230,7 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_EXPOSE_HEADERS = ['Content-Type', 'X-CSRFToken']
 
 # Add these CORS settings
-CORS_ALLOW_CREDENTIALS = True
+
 CORS_ORIGIN_ALLOW_ALL = False
 CORS_PREFLIGHT_MAX_AGE = 86400
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB in bytes

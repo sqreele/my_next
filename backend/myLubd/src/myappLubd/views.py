@@ -1,3 +1,21 @@
+from django.contrib.auth import get_user_model
+from django.conf import settings
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
+from google.oauth2 import id_token
+from google.auth.transport import requests
+from .models import UserProfile
+import logging
+
+
+
+
+
+
+
 from rest_framework import viewsets
 from rest_framework import status
 from rest_framework.response import Response
@@ -497,3 +515,108 @@ def auth_check(request):
             'isAuthenticated': False,
             'error': str(e)
         }, status=status.HTTP_400_BAD_REQUEST)
+
+logger = logging.getLogger(__name__)
+User = get_user_model()
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def google_auth(request):
+    """Handle Google authentication"""
+    try:
+        # Get tokens from request
+        id_token_credential = request.data.get('id_token')
+        access_token = request.data.get('access_token')
+        
+        if not id_token_credential:
+            return Response(
+                {'error': 'No ID token provided'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Verify the ID token with Google
+        try:
+            idinfo = id_token.verify_oauth2_token(
+                id_token_credential,
+                requests.Request(),
+                settings.GOOGLE_CLIENT_ID
+            )
+        except ValueError as ve:
+            logger.error(f"Token verification failed: {str(ve)}")
+            return Response(
+                {'error': 'Invalid token'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get user information
+        email = idinfo.get('email')
+        google_id = idinfo.get('sub')
+
+        if not email:
+            return Response(
+                {'error': 'Email not provided by Google'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Try to find user by Google ID first
+        try:
+            userprofile = UserProfile.objects.get(google_id=google_id)
+            user = userprofile.user
+        except UserProfile.DoesNotExist:
+            # Try to find user by email
+            try:
+                user = User.objects.get(email=email)
+                userprofile = user.userprofile
+                userprofile.google_id = google_id
+                userprofile.save()
+            except User.DoesNotExist:
+                # Create new user
+                username = email.split('@')[0]
+                base_username = username
+                counter = 1
+                while User.objects.filter(username=username).exists():
+                    username = f"{base_username}{counter}"
+                    counter += 1
+
+                user = User.objects.create(
+                    username=username,
+                    email=email,
+                    is_active=True,
+                    first_name=idinfo.get('given_name', ''),
+                    last_name=idinfo.get('family_name', '')
+                )
+                userprofile = user.userprofile
+
+        # Update profile with Google data
+        try:
+            userprofile.update_from_google_data(idinfo)
+            userprofile.access_token = access_token
+            userprofile.save()
+        except Exception as e:
+            logger.error(f"Error updating user profile: {str(e)}")
+
+        # Generate JWT tokens
+        refresh = RefreshToken.for_user(user)
+        tokens = {
+            'access': str(refresh.access_token),
+            'refresh': str(refresh)
+        }
+
+        return Response({
+            'tokens': tokens,
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'profile_image': userprofile.profile_image.url if userprofile.profile_image else None,
+                'positions': userprofile.positions,
+                'properties': list(userprofile.properties.values('id', 'name', 'property_id')),
+            }
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        logger.error(f"Unexpected error in google_auth: {str(e)}")
+        return Response(
+            {'error': 'Authentication failed', 'detail': str(e)}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

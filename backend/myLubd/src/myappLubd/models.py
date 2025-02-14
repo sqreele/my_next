@@ -9,6 +9,10 @@ from io import BytesIO
 import os
 from django.core.files.base import ContentFile
 from pathlib import Path
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+
 
 
 def get_upload_path(instance, filename):
@@ -321,3 +325,88 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return f"{self.user.username}'s Profile"
+  # New fields for Google Auth
+      # Google OAuth fields
+    google_id = models.CharField(max_length=100, blank=True, null=True)
+    email_verified = models.BooleanField(default=False)
+    access_token = models.TextField(blank=True, null=True)
+    refresh_token = models.TextField(blank=True, null=True)
+    login_provider = models.CharField(max_length=50, blank=True, null=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['google_id']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username}'s Profile"
+
+    def save(self, *args, **kwargs):
+        if self.profile_image:
+            try:
+                img = Image.open(self.profile_image)
+                
+                # Convert RGBA to RGB if necessary
+                if img.mode in ('RGBA', 'LA'):
+                    background = Image.new('RGB', img.size, (255, 255, 255))
+                    background.paste(img, mask=img.getchannel('A'))
+                    img = background
+                elif img.mode != 'RGB':
+                    img = img.convert('RGB')
+
+                # Resize image if too large
+                if img.height > 300 or img.width > 300:
+                    output_size = (300, 300)
+                    img.thumbnail(output_size, Image.Resampling.LANCZOS)
+
+                # Save as WebP
+                output = BytesIO()
+                img.save(output, format='WEBP', quality=85, optimize=True)
+                output.seek(0)
+
+                # Generate unique filename
+                random_name = get_random_string(12)
+                webp_name = f'profile_images/{random_name}.webp'
+
+                # Save the processed image
+                self.profile_image.save(
+                    webp_name,
+                    ContentFile(output.getvalue()),
+                    save=False
+                )
+                
+                output.close()
+            except Exception as e:
+                print(f"Error processing profile image: {e}")
+
+        super().save(*args, **kwargs)
+
+    def update_from_google_data(self, google_data):
+        """Update profile with data from Google"""
+        if google_data.get('picture'):
+            self.profile_image = google_data['picture']
+        
+        self.google_id = google_data.get('sub')
+        self.email_verified = google_data.get('email_verified', False)
+        self.login_provider = 'google'
+        
+        # Update user model fields
+        self.user.first_name = google_data.get('given_name', '')
+        self.user.last_name = google_data.get('family_name', '')
+        self.user.email = google_data.get('email', '')
+        
+        self.user.save()
+        self.save()
+
+@receiver(post_save, sender=User)
+def create_user_profile(sender, instance, created, **kwargs):
+    """Create a UserProfile for every new User"""
+    if created:
+        UserProfile.objects.create(user=instance)
+
+@receiver(post_save, sender=User)
+def save_user_profile(sender, instance, **kwargs):
+    """Save UserProfile when User is saved"""
+    if not hasattr(instance, 'userprofile'):
+        UserProfile.objects.create(user=instance)
+    instance.userprofile.save()
