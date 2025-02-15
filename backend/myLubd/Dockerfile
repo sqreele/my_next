@@ -1,8 +1,10 @@
-FROM python:3.9
+FROM python:3.10
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
+ENV DJANGO_SETTINGS_MODULE=myLubd.settings
+ENV PYTHONPATH=/app
 
 WORKDIR /app
 
@@ -17,7 +19,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy project
-COPY . .
+COPY ./src .
 
 # Set up entrypoint script
 COPY entrypoint.sh /entrypoint.sh

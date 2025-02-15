@@ -9,6 +9,7 @@ from google.oauth2 import id_token
 from google.auth.transport import requests
 from .models import UserProfile
 import logging
+from django.http import HttpResponse
 
 
 
