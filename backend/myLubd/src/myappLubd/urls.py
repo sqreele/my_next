@@ -29,8 +29,8 @@ router.register(r'user-profiles', UserProfileViewSet)
 urlpatterns = [
     # Include API routes under the 'api/' path
     path('api/', include(router.urls)),
-    path('api/v1/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/v1/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/session/', CustomSessionView.as_view(), name='auth_session'),
     path('api/v1/auth/_log', log_view, name='log_view'),
     path('api/v1/auth/google/', views.google_auth, name='google-auth'),

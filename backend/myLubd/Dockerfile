@@ -1,4 +1,6 @@
-FROM python:3.10
+
+FROM python:3.9
+
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
@@ -28,3 +30,4 @@ RUN chmod +x /entrypoint.sh
 EXPOSE 8000
 
 ENTRYPOINT ["/entrypoint.sh"]
+

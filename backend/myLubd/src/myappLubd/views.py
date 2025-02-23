@@ -10,11 +10,7 @@ from google.auth.transport import requests
 from .models import UserProfile
 import logging
 from django.http import HttpResponse
-
-
-
-
-
+import json  # Import json for logging request and response data
 
 
 from rest_framework import viewsets
@@ -31,9 +27,9 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from .models import Room, Topic, Job, Property, UserProfile, Property
 from .serializers import (
-    RoomSerializer, 
-    TopicSerializer, 
-    JobSerializer, 
+    RoomSerializer,
+    TopicSerializer,
+    JobSerializer,
     PropertySerializer,
     UserProfileSerializer
 )
@@ -64,7 +60,7 @@ class JobViewSet(viewsets.ModelViewSet):
         queryset = self.get_queryset()
         lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
         filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
-        
+
         obj = get_object_or_404(queryset, **filter_kwargs)
         self.check_object_permissions(self.request, obj)
         return obj
@@ -76,13 +72,13 @@ class JobViewSet(viewsets.ModelViewSet):
         """
         job = self.get_object()
         status_value = request.data.get('status')
-        
+
         if status_value and status_value not in dict(Job.STATUS_CHOICES):
             return Response(
                 {"detail": "Invalid status value."},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         job.status = status_value
         job.save()
         serializer = self.get_serializer(job)
@@ -111,12 +107,12 @@ class UserProfileViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = UserProfile.objects.all().prefetch_related('properties')
-        
+
         # Filter by position
         position = self.request.query_params.get('position', None)
         if position:
             queryset = queryset.filter(positions__icontains=position)
-            
+
         return queryset
 
     @action(detail=False, methods=['get'])
@@ -131,16 +127,16 @@ class UserProfileViewSet(viewsets.ModelViewSet):
         """Add property to user profile"""
         profile = self.get_object()
         property_id = request.data.get('property_id')
-        
+
         if not property_id:
             return Response(
                 {'error': 'property_id is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-            
+
         property = get_object_or_404(Property, id=property_id)
         profile.properties.add(property)
-        
+
         serializer = self.get_serializer(profile)
         return Response(serializer.data)
 
@@ -149,16 +145,16 @@ class UserProfileViewSet(viewsets.ModelViewSet):
         """Remove property from user profile"""
         profile = self.get_object()
         property_id = request.data.get('property_id')
-        
+
         if not property_id:
             return Response(
                 {'error': 'property_id is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-            
+
         property = get_object_or_404(Property, id=property_id)
         profile.properties.remove(property)
-        
+
         serializer = self.get_serializer(profile)
         return Response(serializer.data)
 
@@ -169,12 +165,12 @@ class UserProfileViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = UserProfile.objects.all().prefetch_related('properties')
-        
+
         # Filter by position
         position = self.request.query_params.get('position', None)
         if position:
             queryset = queryset.filter(positions__icontains=position)
-            
+
         return queryset
 
     @action(detail=False, methods=['get'])
@@ -189,16 +185,16 @@ class UserProfileViewSet(viewsets.ModelViewSet):
         """Add property to user profile"""
         profile = self.get_object()
         property_id = request.data.get('property_id')
-        
+
         if not property_id:
             return Response(
                 {'error': 'property_id is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-            
+
         property = get_object_or_404(Property, id=property_id)
         profile.properties.add(property)
-        
+
         serializer = self.get_serializer(profile)
         return Response(serializer.data)
 
@@ -207,26 +203,26 @@ class UserProfileViewSet(viewsets.ModelViewSet):
         """Remove property from user profile"""
         profile = self.get_object()
         property_id = request.data.get('property_id')
-        
+
         if not property_id:
             return Response(
                 {'error': 'property_id is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-            
+
         property = get_object_or_404(Property, id=property_id)
         profile.properties.remove(property)
-        
+
         serializer = self.get_serializer(profile)
         return Response(serializer.data)
 class PropertyViewSet(viewsets.ModelViewSet):
     permission_classes = [AllowAny]
     queryset = Property.objects.all()
     serializer_class = PropertySerializer
-    
+
     def get_queryset(self):
         queryset = Property.objects.all()
-        
+
         # Filter by price range
         min_price = self.request.query_params.get('min_price', None)
         max_price = self.request.query_params.get('max_price', None)
@@ -234,12 +230,12 @@ class PropertyViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(price__gte=min_price)
         if max_price:
             queryset = queryset.filter(price__lte=max_price)
-            
+
         # Filter by location
         location = self.request.query_params.get('location', None)
         if location:
             queryset = queryset.filter(location__icontains=location)
-            
+
         return queryset
 
     @action(detail=True, methods=['post'])
@@ -248,7 +244,7 @@ class PropertyViewSet(viewsets.ModelViewSet):
         user_profile = get_object_or_404(UserProfile, user=request.user)
         user_profile.properties.add(property)
         return Response({'status': 'property added to profile'})
-    
+
 class CustomSessionView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -257,26 +253,34 @@ class CustomSessionView(APIView):
         # Get user profile
         try:
             profile = user.profile  # Assuming you have a related profile model
-            return Response({
-                "id": user.id,
-                "username": user.username,
-                "email": user.email,
-                "is_staff": user.is_staff,
-                "profile": {
-                    "properties": profile.properties,
-                    "positions": profile.positions,
-                    "profile_image": profile.profile_image if hasattr(profile, 'profile_image') else None
-                }
-            })
+            session_data = {  # Create session_data dictionary
+                "user": {     # Wrap user info in "user" object
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "is_staff": user.is_staff,
+                    "profile": {
+                        "properties": profile.properties,
+                        "positions": profile.positions,
+                        "profile_image": profile.profile_image if hasattr(profile, 'profile_image') else None
+                    }
+                },
+                "expires": "YOUR_EXPIRATION_TIMESTAMP_HERE" # ⚠️ You need to set a proper expiration timestamp!
+            }
+            return Response({"session": session_data}) # Wrap everything in "session"
+
         except:
-            return Response({
-                "id": user.id,
-                "username": user.username,
-                "email": user.email,
-                "is_staff": user.is_staff,
-            })
-        
-from django.views.decorators.csrf import csrf_exempt       
+            session_data = { # Create session_data dictionary even in error case
+                "user": {      # Wrap user info in "user" object
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "is_staff": user.is_staff,
+                },
+                "expires": "YOUR_EXPIRATION_TIMESTAMP_HERE" # ⚠️ You need to set a proper expiration timestamp!
+            }
+            return Response({"session": session_data}) # Wrap everything in "session"
+from django.views.decorators.csrf import csrf_exempt
 @csrf_exempt
 def log_view(request):
     """
@@ -300,7 +304,7 @@ class UserSessionView(APIView):
             "profile_image": getattr(user, 'profile_image', None),  # Optional field
         })
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny
 from django.contrib.auth.decorators import login_required
 from django.middleware.csrf import get_token
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -310,7 +314,7 @@ from django.contrib.auth.models import AnonymousUser
 def auth_check(request):
     try:
         csrf_token = get_token(request)
-        
+
         if request.user.is_authenticated:
             refresh = RefreshToken.for_user(request.user)
             return Response({
@@ -324,12 +328,12 @@ def auth_check(request):
                 },
                 'csrf_token': csrf_token
             })
-        
+
         return Response({
             'authenticated': False,
             'csrf_token': csrf_token
         }, status=200)
-    
+
     except Exception as e:
         print(f"Auth check error: {str(e)}")
         return Response({
@@ -396,7 +400,7 @@ from django.contrib.auth import authenticate, login
 def login_view(request):
     username = request.data.get('username')
     password = request.data.get('password')
-    
+
     user = authenticate(username=username, password=password)
     if user:
         login(request, user)
@@ -408,7 +412,7 @@ def login_view(request):
             }
         })
     return Response(
-        {'detail': 'Invalid credentials'}, 
+        {'detail': 'Invalid credentials'},
         status=status.HTTP_401_UNAUTHORIZED
     )
 def log_view(request):
@@ -446,7 +450,7 @@ from .serializers import UserRegistrationSerializer, LoginSerializer
 @permission_classes([AllowAny])
 @csrf_exempt
 def register_user(request):
-    serializer = UserRegistrationSerializer(data=request.data) 
+    serializer = UserRegistrationSerializer(data=request.data)
     if serializer.is_valid():
         user = serializer.save()
         refresh = RefreshToken.for_user(user)
@@ -470,7 +474,7 @@ def login_user(request):
         username = serializer.validated_data['username']
         password = serializer.validated_data['password']
         user = authenticate(username=username, password=password)
-        
+
         if user:
             refresh = RefreshToken.for_user(user)
             return Response({
@@ -483,7 +487,7 @@ def login_user(request):
                 }
             })
         return Response(
-            {'detail': 'Invalid credentials'}, 
+            {'detail': 'Invalid credentials'},
             status=status.HTTP_401_UNAUTHORIZED
         )
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -495,7 +499,7 @@ def auth_check(request):
         user = request.user
         # Get or create user profile
         profile, created = UserProfile.objects.get_or_create(user=user)
-        
+
         return Response({
             'isAuthenticated': True,
             'user': {
@@ -524,14 +528,19 @@ User = get_user_model()
 @permission_classes([AllowAny])
 def google_auth(request):
     """Handle Google authentication"""
+    logger.info("google_auth view started") # Log start
+
     try:
+        logger.info(f"Request Data: {json.dumps(request.data)}") # Log request data
+
         # Get tokens from request
         id_token_credential = request.data.get('id_token')
         access_token = request.data.get('access_token')
-        
+
         if not id_token_credential:
+            logger.warning("No ID token provided in request") # Log warning
             return Response(
-                {'error': 'No ID token provided'}, 
+                {'error': 'No ID token provided'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -542,35 +551,44 @@ def google_auth(request):
                 requests.Request(),
                 settings.GOOGLE_CLIENT_ID
             )
+            logger.info("Token verification successful") # Log success
         except ValueError as ve:
-            logger.error(f"Token verification failed: {str(ve)}")
+            logger.error(f"Token verification failed: {str(ve)}") # Log verification failure
             return Response(
-                {'error': 'Invalid token'}, 
+                {'error': 'Invalid token'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         # Get user information
         email = idinfo.get('email')
         google_id = idinfo.get('sub')
+        logger.info(f"Extracted email: {email}, google_id: {google_id} from token") # Log extracted info
 
         if not email:
+            logger.warning("Email not provided by Google in token") # Log email missing
             return Response(
-                {'error': 'Email not provided by Google'}, 
+                {'error': 'Email not provided by Google'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         # Try to find user by Google ID first
         try:
+            logger.info(f"Attempting to find UserProfile by google_id: {google_id}") # Log lookup attempt
             userprofile = UserProfile.objects.get(google_id=google_id)
             user = userprofile.user
+            logger.info(f"UserProfile found by google_id: {google_id}, User: {user.username}") # Log user found
         except UserProfile.DoesNotExist:
+            logger.info(f"UserProfile not found by google_id: {google_id}, trying to find user by email: {email}") # Log not found by google_id
             # Try to find user by email
             try:
                 user = User.objects.get(email=email)
+                logger.info(f"User found by email: {email}, username: {user.username}") # Log user found by email
                 userprofile = user.userprofile
                 userprofile.google_id = google_id
                 userprofile.save()
+                logger.info(f"UserProfile updated with google_id: {google_id}") # Log profile updated
             except User.DoesNotExist:
+                logger.info(f"User not found by email: {email}, creating new user") # Log user creation
                 # Create new user
                 username = email.split('@')[0]
                 base_username = username
@@ -586,24 +604,31 @@ def google_auth(request):
                     first_name=idinfo.get('given_name', ''),
                     last_name=idinfo.get('family_name', '')
                 )
-                userprofile = user.userprofile
+                logger.info(f"New user created: username={user.username}, email={email}") # Log new user creation
+                userprofile = UserProfile.objects.create(user=user, google_id=google_id) # Create user profile
+                logger.info(f"New UserProfile created for user: {user.username}, google_id: {google_id}") # Log new profile creation
 
         # Update profile with Google data
         try:
+            logger.info(f"Updating UserProfile for user: {user.username} from Google data") # Log profile update start
             userprofile.update_from_google_data(idinfo)
             userprofile.access_token = access_token
             userprofile.save()
+            logger.info(f"UserProfile updated successfully for user: {user.username}") # Log profile update success
         except Exception as e:
-            logger.error(f"Error updating user profile: {str(e)}")
+            logger.error(f"Error updating user profile: {str(e)}") # Log profile update error
+            logger.exception(e) # Log exception details
 
         # Generate JWT tokens
+        logger.info(f"Generating JWT tokens for user: {user.username}") # Log token generation start
         refresh = RefreshToken.for_user(user)
         tokens = {
             'access': str(refresh.access_token),
             'refresh': str(refresh)
         }
+        logger.info(f"JWT tokens generated for user: {user.username}") # Log token generation success
 
-        return Response({
+        response_data = { # Capture response data for logging
             'tokens': tokens,
             'user': {
                 'id': user.id,
@@ -613,11 +638,15 @@ def google_auth(request):
                 'positions': userprofile.positions,
                 'properties': list(userprofile.properties.values('id', 'name', 'property_id')),
             }
-        }, status=status.HTTP_200_OK)
+        }
+        logger.info(f"Response Data to Frontend: {json.dumps(response_data)}") # Log response data
+
+        return Response(response_data, status=status.HTTP_200_OK)
 
     except Exception as e:
         logger.error(f"Unexpected error in google_auth: {str(e)}")
+        logger.exception(e) # Log full traceback
         return Response(
-            {'error': 'Authentication failed', 'detail': str(e)}, 
+            {'error': 'Authentication failed', 'detail': str(e)},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )

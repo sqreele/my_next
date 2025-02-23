@@ -410,3 +410,39 @@ def save_user_profile(sender, instance, **kwargs):
     if not hasattr(instance, 'userprofile'):
         UserProfile.objects.create(user=instance)
     instance.userprofile.save()
+import requests
+import os
+from django.conf import settings
+from django.core.files.base import ContentFile
+import logging
+
+logger = logging.getLogger(__name__)
+
+def update_from_google_data(self, idinfo):
+    profile_image_url = idinfo.get('picture')
+    if profile_image_url:
+        logger.info(f"Processing profile image URL: {profile_image_url}")  # Log URL
+        try:
+            response = requests.get(profile_image_url, stream=True, timeout=10)  # Download image with timeout
+            response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+
+            filename = f"profile_image_{self.user.id}.jpg"  # Generate unique filename
+            profile_image_path = os.path.join(settings.MEDIA_ROOT, filename)  # Correct path
+
+            logger.info(f"Generated profile image path: {profile_image_path}")  # Log path before saving
+            self.profile_image.save(filename, ContentFile(response.content), save=False) # Save using ContentFile
+            logger.info(f"Profile image saved successfully to: {self.profile_image.path}")  # Log save success
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error downloading profile image from {profile_image_url}: {e}") # Log download error
+            logger.exception(e) # Log exception traceback
+        except Exception as e:
+            logger.error(f"Error saving profile image to {profile_image_path}: {e}") # Log save error
+            logger.exception(e) # Log exception traceback
+    else:
+        logger.info("No profile image URL found in Google data.") # Log if no image URL
+
+    self.google_id = idinfo.get('sub')
+    self.email_verified = idinfo.get('email_verified')
+    self.last_login_google = timezone.now()
+    self.save()
