@@ -1,7 +1,7 @@
-
 from django.contrib import admin
-from .models import Room, Topic, JobImage, Job, Property,UserProfile
+from .models import Room, Topic, JobImage, Job, Property, UserProfile
 from django.utils.html import format_html
+
 @admin.register(JobImage)
 class JobImageAdmin(admin.ModelAdmin):
     list_display = ('image_preview', 'get_image_url', 'get_uploaded_by', 'get_uploaded_at')
@@ -32,13 +32,25 @@ class JobImageAdmin(admin.ModelAdmin):
         return obj.uploaded_at
     get_uploaded_at.short_description = 'Upload Date'
     
-    
+class UserFilter(admin.SimpleListFilter):
+    title = 'User'
+    parameter_name = 'user_id'
+
+    def lookups(self, request, model_admin):
+        users = set([job.user for job in model_admin.model.objects.all()])
+        return [(user.id, user.username) for user in users]
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(user__id=self.value())
+        return queryset
     
 @admin.register(Room)
 class RoomAdmin(admin.ModelAdmin):
     list_display = ('name', 'room_type', 'is_active', 'created_at')
-    list_filter = ('room_type', 'is_active','properties')
+    list_filter = ('room_type', 'is_active', 'properties')
     search_fields = ['name']
+    
     def get_properties(self, obj):
         # Get first 3 properties and add '...' if there are more
         properties = obj.properties.all()[:3]
@@ -47,15 +59,16 @@ class RoomAdmin(admin.ModelAdmin):
             property_list.append('...')
         return ", ".join(property_list)
     get_properties.short_description = 'Properties'
+
 @admin.register(Topic)
 class TopicAdmin(admin.ModelAdmin):
-    list_display = ('title', 'description','id')  # Use 'topic_id' instead of 'id'
+    list_display = ('title', 'description', 'id')
     search_fields = ['title']
 
 @admin.register(Job)
 class JobAdmin(admin.ModelAdmin):
-    list_display = ('job_id', 'user', 'status', 'priority' ,'remarks', 'created_at', 'completed_at')
-    list_filter = ('status', 'priority', 'created_at')
+    list_display = ('job_id', 'user', 'status', 'priority', 'remarks', 'created_at', 'completed_at')
+    list_filter = ('status', 'priority', 'created_at', UserFilter)  # Using the custom UserFilter
     search_fields = ('job_id', 'description')
 
 @admin.register(Property)
