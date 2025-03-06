@@ -224,6 +224,7 @@ class JobImage(models.Model):
 
         super().delete(*args, **kwargs)
 
+# models.py
 class Job(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'),
@@ -237,7 +238,6 @@ class Job(models.Model):
         ('low', 'Low'),
         ('medium', 'Medium'),
         ('high', 'High'),
-     
     ]
    
     job_id = models.CharField(
@@ -250,6 +250,14 @@ class Job(models.Model):
         User, 
         on_delete=models.CASCADE, 
         related_name='maintenance_jobs'
+    )
+    updated_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='updated_jobs',
+        help_text="User who last updated this job"
     )
     rooms = models.ManyToManyField(
         Room, 

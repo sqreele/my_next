@@ -68,28 +68,24 @@ class TopicSerializer(serializers.ModelSerializer):
         fields = ['title', 'description','id']
 from django.db import transaction
 class JobSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField(read_only=True)
-    images = JobImageSerializer(source='job_images', many=True, read_only=True)  # Use job_images
-    topics = TopicSerializer(many=True, read_only=True)
-    profile_image = UserProfileSerializer(source='user.userprofile', read_only=True)
-    room_type = serializers.CharField(source='room.room_type', read_only=True)
-    name = serializers.CharField(source='room.name', read_only=True)
-    rooms = RoomSerializer(many=True, read_only=True)
-    topic_data = serializers.JSONField(write_only=True)
-    room_id = serializers.IntegerField(write_only=True)
-    image_urls = serializers.SerializerMethodField()
-   
+    updated_by = serializers.SlugRelatedField(
+        slug_field='username',
+        queryset=User.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    user = serializers.SlugRelatedField(
+        slug_field='username',
+        queryset=User.objects.all()
+    )
+    
     class Meta:
         model = Job
         fields = [
-            'job_id', 'description', 'status', 'priority',
-            'created_at', 'updated_at', 'completed_at',
-            'user', 'profile_image', 'images', 'topics',
-            'room_type', 'name', 'rooms', 'remarks',
-            'is_defective', 'topic_data', 'room_id',
-            'image_urls','id'
+            'job_id', 'user', 'updated_by', 'description', 'remarks',
+            'status', 'priority', 'created_at', 'updated_at', 'completed_at',
+            'is_defective', 'rooms', 'topics', 'images'
         ]
-        read_only_fields = ['job_id', 'created_at', 'updated_at', 'completed_at', 'user']
 
     def get_image_urls(self, obj):
         """Return a list of full URLs for all images associated with the job"""

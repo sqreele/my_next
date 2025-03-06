@@ -34,7 +34,7 @@ class TopicViewSet(viewsets.ModelViewSet):
     serializer_class = TopicSerializer
 
 class JobViewSet(viewsets.ModelViewSet):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]  # Changed to require authentication
     queryset = Job.objects.all()
     serializer_class = JobSerializer
     lookup_field = 'job_id'  # Use job_id instead of pk for lookups
@@ -51,6 +51,12 @@ class JobViewSet(viewsets.ModelViewSet):
         self.check_object_permissions(self.request, obj)
         return obj
 
+    def perform_update(self, serializer):
+        """
+        Automatically set updated_by to the current user during updates
+        """
+        serializer.save(updated_by=self.request.user)
+
     @action(detail=True, methods=['patch'])
     def update_status(self, request, job_id=None):
         """
@@ -65,10 +71,12 @@ class JobViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        job.status = status_value
-        job.save()
-        serializer = self.get_serializer(job)
-        return Response(serializer.data)
+        serializer = self.get_serializer(job, data={'status': status_value}, partial=True)
+        if serializer.is_valid():
+            serializer.save(updated_by=request.user)
+            logger.info(f"Job {job.job_id} status updated to {status_value} by {request.user.username}")
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def retrieve(self, request, *args, **kwargs):
         """
@@ -85,7 +93,6 @@ class JobViewSet(viewsets.ModelViewSet):
                 {"detail": "Job not found"},
                 status=status.HTTP_404_NOT_FOUND
             )
-
 class UserProfileViewSet(viewsets.ModelViewSet):
     permission_classes = [AllowAny]
     queryset = UserProfile.objects.all()
