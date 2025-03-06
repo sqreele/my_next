@@ -108,10 +108,10 @@ TEMPLATES = [
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'mylubd_db',
-        'USER': 'mylubd_user',
+        'NAME': 'mydatabase',  # Add your actual database name here
+        'USER': 'myusernext',
         'PASSWORD': 'Sqreele1234#',
-        'HOST': 'db',
+        'HOST': 'localhost',
         'PORT': '5432',
     }
 }

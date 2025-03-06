@@ -31,7 +31,7 @@ urlpatterns = [
     path('api/auth/check/', views.auth_check, name='auth_check'),
    # path('api/auth/register/', views.RegisterView.as_view(), name='register'),
     path('api/auth/register/', views.register_user, name='register'),
-    path('auth/signin/', views.login_user, name='login'),
+    path('api/auth/signin/', views.login_user, name='login'),
   
 
  
